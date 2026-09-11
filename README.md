@@ -15,6 +15,13 @@ with tools executed in OpenAI's open-source **`codex exec-server`** sandbox.
 
 ---
 
+## Documentation
+
+- [`docs/architecture.md`](docs/architecture.md) — data flow + module map (Mermaid; renders on GitHub)
+- [`docs/architecture.html`](docs/architecture.html) — self-contained visual diagram (open in a browser)
+- [`docs/BRIEF_MAG_Agents_API.md`](docs/BRIEF_MAG_Agents_API.md) — one-page brief: test matrix, the managed-Agents-API `base_url` product ask, and this repo as the working proof
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — dev setup, test gates, roadmap
+
 ## Why this is a thin adapter, not a harness rewrite
 
 MAG already exposes every primitive the Agents API is built on (all verified live):
