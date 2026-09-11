@@ -155,6 +155,54 @@ stateful + streaming, all verified) and works against MAG today. This translatio
 matters only if you're committed to the **managed Agents API SDK** and want to swap
 `base_url` to MAG. This adapter proves that swap is achievable.
 
+## Related: OpenAI Agents *SDK* (LiteLLM `ModelProvider`)
+
+Don't confuse the two OpenAI "agents" products — they solve different problems:
+
+| | **OpenAI Agents *SDK*** (`openai-agents`) | **OpenAI Agents *API*** (this repo) |
+|---|---|---|
+| What it is | open-source, **client-side** framework (`Agent`, `Runner`, `ModelProvider`) | OpenAI's **managed cloud service** (`client.beta.agents`, `POST /v1/agents/sessions`) |
+| Where the loop runs | in **your** process | normally on **OpenAI's** servers; this adapter re-serves that loop on MAG |
+| Reaching MAG | built-in `base_url` hook — point a `ModelProvider` at MAG directly | no `base_url` hook on the managed API → **needs this adapter** |
+| Infra needed | none (~20 lines) | a running shim + `codex exec-server` sandbox |
+| Use it when | you write the client and are happy to run the loop locally | you need existing **managed-Agents-API** code to work against MAG via a `base_url` swap |
+
+Because MAG is OpenAI-compatible (Kong → LiteLLM), the **Agents SDK** talks to it
+directly — no adapter required. Andrew Schmeder (LBNL) shared the minimal pattern:
+
+```python
+import os
+from openai import AsyncOpenAI
+from agents import ModelProvider, OpenAIChatCompletionsModel, Runner, set_tracing_disabled
+
+set_tracing_disabled(disabled=True)                     # no OpenAI-platform tracing behind a proxy
+mag_client = AsyncOpenAI(
+    base_url=os.environ["MAG_BASE_URL"],                # e.g. https://i2-api.genesis.american-science-cloud.org/v1
+    api_key=os.environ["MAG_API_KEY"],                  # your AMSC bearer token, one unbroken line
+)
+
+class MAGModelProvider(ModelProvider):
+    def get_model(self, model_name):
+        return OpenAIChatCompletionsModel(
+            model=model_name or "gpt-5.3-codex",
+            openai_client=mag_client,
+        )
+
+# the provider is passed to the RUNNER, not to Agent(...):
+#   Runner.run(agent, input, run_config=RunConfig(model_provider=MAGModelProvider()))
+```
+
+Two notes on that snippet: (1) in `openai-agents`, `Agent(...)` takes no
+`model_provider=` kwarg — pass the provider to the runner via
+`RunConfig(model_provider=...)` and actually call `Runner.run(...)`. (2)
+`OpenAIChatCompletionsModel` uses the chat/completions wire API; for Codex-family
+models prefer `OpenAIResponsesModel` (the Responses API, verified 200 on MAG).
+
+**Which to use:** need agents on MAG and you control the client → the Agents SDK
+(simpler, no infra). Need the *managed Agents API* contract to work against MAG
+(SDK-portability, `base_url` swap for existing managed-API code) → this adapter,
+until OpenAI adds a native `base_url` hook (the product ask in the brief).
+
 ## Files
 
 ```

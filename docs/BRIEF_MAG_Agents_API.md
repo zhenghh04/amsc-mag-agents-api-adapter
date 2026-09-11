@@ -57,6 +57,24 @@ The decision hinges on **where the 50B tokens live**:
 This is the single capability that would let the *managed* Agents API run on MAG.
 It does not exist today.
 
+## Related: the Agents *SDK* already works on MAG (no product change needed)
+
+Note the two OpenAI "agents" products are different. The **Agents *SDK***
+(`openai-agents`: `Agent`, `Runner`, `ModelProvider`) is an open-source,
+**client-side** framework with a built-in `base_url` hook — so it points at MAG
+directly, today, with ~20 lines and no adapter. Andrew Schmeder (LBNL) shared the
+minimal LiteLLM `ModelProvider` pattern; it's the same "self-hosted harness" path this
+brief recommends for the 50B-token run.
+
+The **product ask above is only for the *managed* Agents API** (`client.beta.agents` /
+`POST /v1/agents/sessions`) — the cloud service that has no `base_url` hook. Code
+written against *that* can't reach MAG without either the OpenAI change or our adapter.
+
+| Need | Route |
+|---|---|
+| Agents on MAG, you control the client | **Agents SDK** + `ModelProvider(base_url=MAG)` — no infra |
+| Existing **managed-Agents-API** code on MAG (`base_url` swap) | **this adapter**, until OpenAI ships the hook |
+
 ## The working proof (this repo)
 
 We built a thin translation layer that runs the Agents API contract on top of MAG's
