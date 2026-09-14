@@ -34,9 +34,13 @@ import websockets
 
 
 class SandboxClient:
-    def __init__(self, uri: str, cwd_uri: str | None = None, env: dict | None = None):
+    def __init__(self, uri: str, cwd_uri: str | None = None, env: dict | None = None,
+                 workspace: str | None = None):
         self.uri = uri
-        self.cwd_uri = cwd_uri or ("file://" + os.environ.get("SANDBOX_CWD", "/tmp"))
+        # The workspace directory is the one path the (hardened) sandbox is allowed
+        # to write to. All fs ops resolve relative paths against it.
+        self.workspace = (workspace or os.environ.get("SANDBOX_CWD", "/tmp")).rstrip("/") or "/"
+        self.cwd_uri = cwd_uri or ("file://" + self.workspace)
         self.env = env or {
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": os.environ.get("HOME", "/tmp"),
@@ -127,7 +131,51 @@ class SandboxClient:
                 "sandbox_denied": sandbox_denied,
             }
 
+    def _resolve(self, path: str) -> str:
+        """Resolve a (possibly relative) path against the workspace, without escaping it."""
+        if not path.startswith("/"):
+            path = f"{self.workspace}/{path}"
+        return os.path.normpath(path)
+
+    async def fs_read(self, path: str) -> dict:
+        """Read a file from the sandbox filesystem. Returns {content, exists, error?}."""
+        p = self._resolve(path)
+        # base64 keeps arbitrary bytes intact across the shell channel.
+        res = await self.run(f"base64 < {_shq(p)}")
+        if res.get("exit_code") == 0:
+            try:
+                content = base64.b64decode(res.get("stdout", "")).decode(errors="replace")
+            except Exception as exc:  # pragma: no cover - defensive
+                return {"exists": True, "content": "", "error": f"decode: {exc}"}
+            return {"exists": True, "content": content}
+        return {"exists": False, "content": "",
+                "error": res.get("stderr", "").strip() or "read failed",
+                "sandbox_denied": res.get("sandbox_denied", False)}
+
+    async def fs_write(self, path: str, content: str) -> dict:
+        """Write a file in the sandbox filesystem (creating parent dirs). Returns {ok, ...}."""
+        p = self._resolve(path)
+        b64 = base64.b64encode(content.encode()).decode()
+        cmd = (f"mkdir -p {_shq(os.path.dirname(p) or '.')} && "
+               f"printf %s {_shq(b64)} | base64 -d > {_shq(p)}")
+        res = await self.run(cmd)
+        ok = res.get("exit_code") == 0 and not res.get("sandbox_denied")
+        return {"ok": ok, "path": p, "exit_code": res.get("exit_code"),
+                "stderr": res.get("stderr", "").strip(),
+                "sandbox_denied": res.get("sandbox_denied", False)}
+
+    async def fs_delete(self, path: str) -> dict:
+        p = self._resolve(path)
+        res = await self.run(f"rm -f {_shq(p)}")
+        ok = res.get("exit_code") == 0 and not res.get("sandbox_denied")
+        return {"ok": ok, "path": p, "sandbox_denied": res.get("sandbox_denied", False)}
+
     async def close(self) -> None:
         if self.ws is not None:
             await self.ws.close()
             self.ws = None
+
+
+def _shq(s: str) -> str:
+    """POSIX single-quote shell-escape."""
+    return "'" + s.replace("'", "'\\''") + "'"

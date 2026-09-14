@@ -145,4 +145,64 @@ def ev_error(session_id, message, type_="server_error", code=None, param=None):
 
 
 def ev_subagent_created(subagent):  return _ev("agent.session.subagent.created", subagent=subagent)
+def ev_subagent_active(subagent):   return _ev("agent.session.subagent.active", subagent=subagent)
 def ev_subagent_closed(subagent):   return _ev("agent.session.subagent.closed", subagent=subagent)
+
+
+# --------------------------------------------------------------------------- #
+# Turn item + content-part events (schema fidelity: item.added/done,
+# content_part.added/done, command_execution_output.delta, turn.in_progress)
+# --------------------------------------------------------------------------- #
+def ev_turn_in_progress(session_id, turn):
+    return _ev("agent.session.turn.in_progress", session_id=session_id, turn=turn,
+               turn_id=turn["id"])
+
+
+def build_output_text_part(text: str) -> dict:
+    return {"type": "output_text", "text": text}
+
+
+def build_assistant_message(turn_id: str, item_id: str, text: str,
+                            status: str = "completed", phase: str = "final_answer") -> dict:
+    return {"id": item_id, "type": "message", "role": "assistant",
+            "turn_id": turn_id, "status": status, "phase": phase,
+            "content": [build_output_text_part(text)]}
+
+
+def build_command_item(turn_id: str, item_id: str, command: str, status: str = "in_progress",
+                       exit_code: int | None = None, output: str | None = None,
+                       cwd: str | None = None, duration_ms: int | None = None) -> dict:
+    return {"id": item_id, "type": "command_execution", "turn_id": turn_id,
+            "command": command, "status": status, "exit_code": exit_code,
+            "output": output, "cwd": cwd, "duration_ms": duration_ms}
+
+
+def build_function_call_item(turn_id: str, item_id: str, call_id: str, name: str,
+                             arguments, status: str = "completed") -> dict:
+    return {"id": item_id, "type": "function_call", "turn_id": turn_id,
+            "call_id": call_id, "name": name, "arguments": arguments, "status": status}
+
+
+def ev_turn_item_added(session_id, turn_id, item, output_index=0):
+    return _ev("agent.session.turn.item.added", session_id=session_id, turn_id=turn_id,
+               item=item, output_index=output_index)
+
+
+def ev_turn_item_done(session_id, turn_id, item, output_index=0):
+    return _ev("agent.session.turn.item.done", session_id=session_id, turn_id=turn_id,
+               item=item, output_index=output_index)
+
+
+def ev_content_part_added(session_id, turn_id, item_id, part, output_index=0, content_index=0):
+    return _ev("agent.session.turn.content_part.added", session_id=session_id, turn_id=turn_id,
+               item_id=item_id, part=part, output_index=output_index, content_index=content_index)
+
+
+def ev_content_part_done(session_id, turn_id, item_id, part, output_index=0, content_index=0):
+    return _ev("agent.session.turn.content_part.done", session_id=session_id, turn_id=turn_id,
+               item_id=item_id, part=part, output_index=output_index, content_index=content_index)
+
+
+def ev_command_output_delta(session_id, turn_id, item_id, delta, output_index=0):
+    return _ev("agent.output.command_execution_output.delta", session_id=session_id,
+               turn_id=turn_id, item_id=item_id, delta=delta, output_index=output_index)

@@ -2,7 +2,7 @@
 
 **A translation layer that makes the [AMSC Model Access Gateway (MAG)](https://amsc-docs-d762d2.gitlab.io/model-access-gateway/) speak the [OpenAI Agents API](https://openai.com/index/introducing-the-agents-api/) contract.**
 
-**Status: working, tested and passing (2026-09-11).** Real-sandbox + concurrent-subagent fidelity step complete; the official `openai==3.13.0` SDK's Agents API example scripts run **unchanged** against it.
+**Status: working, tested and passing (2026-09-14).** Real-sandbox + concurrent-subagent fidelity step complete, plus native streaming passthrough, context compaction, `apply_patch`/`fs` tools, auth passthrough, session persistence + cancel, and a hardened sandbox — all verified live against MAG. The official `openai==3.13.0` SDK's Agents API example scripts run **unchanged** against it.
 
 It runs the agent orchestration loop itself on top of MAG's OpenAI-compatible
 **Responses API**, exposing `POST /v1/agents/sessions` (header `OpenAI-Beta: agents=v1`),
@@ -58,14 +58,17 @@ bash scripts/run_all.sh
 Or start the pieces by hand:
 
 ```bash
-codex exec-server --listen ws://127.0.0.1:8790
-#   harden with e.g.  -c 'sandbox_permissions=["disk-write-cwd"]'
+# Hardened sandbox: writes limited to each session's cwd/workspace, reads allowed.
+codex exec-server --listen ws://127.0.0.1:8790 \
+  -c 'sandbox_permissions=["disk-write-cwd","disk-full-read-access"]'
 
 set -a; . ./.env; set +a
 python3 -m uvicorn mag_agents_shim:app --port 8811
 
-python3 tests/test_shim.py     http://127.0.0.1:8811
-python3 tests/test_fidelity.py http://127.0.0.1:8811
+python3 tests/test_shim.py       http://127.0.0.1:8811
+python3 tests/test_fidelity.py   http://127.0.0.1:8811
+python3 tests/test_next_steps.py http://127.0.0.1:8811
+python3 tests/test_compaction.py                       # uses MAG_* from .env
 ```
 
 ### Configuration (all via environment / `.env`)
@@ -74,9 +77,20 @@ python3 tests/test_fidelity.py http://127.0.0.1:8811
 |---|---|
 | `MAG_BASE_URL` | MAG endpoint (default AMSC i2 gateway) |
 | `MAG_API_KEY`  | your AMSC bearer token — **one unbroken line** |
-| `SANDBOX_URI`  | `codex exec-server` WS URI; omit to disable the shell tool |
-| `OPENAI_AGENTS_MODEL` | model the shim asks MAG to run (e.g. `gpt-5.3-codex`) |
+| `SANDBOX_URI`  | `codex exec-server` WS URI; omit to disable the shell/fs/apply_patch tools |
+| `SANDBOX_CWD`  | base dir for per-session workspaces (default `/tmp`) |
+| `OPENAI_AGENTS_MODEL` | model the shim asks MAG to run (e.g. `openai/gpt-5.3-codex`) |
 | `SHIM_MAX_TURNS` | agent-loop turn cap (default 10) |
+| `SHIM_COMPACT_EVERY` | compact the running conversation every N tool turns (0 = off; server-side chaining stays on) |
+
+### Endpoints
+
+| Method + path | Purpose |
+|---|---|
+| `POST /v1/agents/sessions` (`OpenAI-Beta: agents=v1`) | create a session; `stream:true` → SSE, else `AgentSession` |
+| `GET /v1/agents/sessions/{id}` | fetch a stored session (persistence) |
+| `POST /v1/agents/sessions/{id}/cancel` | cancel an in-flight session (aborts mid-turn → `turn.cancelled`) |
+| `GET /healthz` | config + counters (sessions, compactions) |
 
 ## What's proven (tested, all passing)
 
@@ -134,11 +148,13 @@ byte-for-byte the upstream repo. Reproduce with `bash scripts/run_examples.sh`
 | **Real sandbox** via `codex exec-server` (shell + on-disk effects) | ✅ |
 | **Subagents** run concurrently under `max_concurrent_subagents` | ✅ |
 | Agents-API SSE (queue-based; interleaves subagent events cleanly) | ✅ |
-| Native streaming passthrough (forward MAG SSE + streamed tool-arg deltas) | ⬜ |
-| Context compaction via `/v1/responses/compact` when history grows | ⬜ |
-| `fs/*` sandbox ops, `apply_patch`, local MCP servers via exec-server | ⬜ |
-| Exact event-schema fidelity, auth passthrough, persistence, cancel | ⬜ |
-| Sandbox policy hardening (executor ran `sandboxType:none` in the demo) | ⬜ |
+| Native streaming passthrough (MAG SSE forwarded live as real token deltas) | ✅ |
+| Context compaction via `/v1/responses/compact` when history grows | ✅ |
+| `fs_read`/`fs_write` + `apply_patch` sandbox tools via exec-server | ✅ |
+| Richer event schema (turn.in_progress, item.added/done, content_part.*, command_execution_output.delta, subagent.active) | ✅ |
+| Auth passthrough (caller bearer → MAG), persistence (`GET`), cancel (`POST …/cancel`) | ✅ |
+| Sandbox policy hardening (`disk-write-cwd` + per-session workspace; no more `sandboxType:none`) | ✅ |
+| Local MCP servers via exec-server | ⬜ |
 
 ### Implementation note (a real bug we hit + fixed)
 `codex exec-server` can deliver the final `process/output` frame **after**
@@ -206,18 +222,28 @@ until OpenAI adds a native `base_url` hook (the product ask in the brief).
 ## Files
 
 ```
-mag_agents_shim.py      FastAPI translation service (agent loop, shell tool, subagents, stream+non-stream)
-agents_api_models.py    SDK-faithful builders for session objects + streaming events
-codex_sandbox.py        client for OpenAI's OSS `codex exec-server` (real sandbox)
-validate_models.py      offline check that our builders parse against openai==3.13.0 models
-tests/test_shim.py      smoke test (function tool, SDK event schema)
-tests/test_fidelity.py  real-sandbox (on-disk) + parallel-subagent test
-scripts/run_all.sh      starts exec-server + shim, runs both test suites
-scripts/run_examples.sh runs the upstream OpenAI SDK example scripts against the shim
+mag_agents_shim.py       FastAPI translation service (agent loop, tools, subagents, streaming,
+                         compaction, auth passthrough, persistence, cancel)
+agents_api_models.py     SDK-faithful builders for session objects + streaming events
+codex_sandbox.py         client for OpenAI's OSS `codex exec-server` (shell + fs_read/fs_write)
+apply_patch.py           parser/applier for the OpenAI apply_patch envelope (Add/Update/Delete File)
+validate_models.py       offline check that our builders parse against openai==3.13.0 models (22/22)
+tests/test_shim.py       smoke test (function tool, SDK event schema)
+tests/test_fidelity.py   real-sandbox (on-disk) + parallel-subagent test
+tests/test_next_steps.py streaming deltas, apply_patch, auth passthrough, persistence, cancel
+tests/test_compaction.py context compaction via /v1/responses/compact (early fact survives)
+scripts/run_all.sh       starts hardened exec-server + shim, runs all four test suites
+scripts/run_examples.sh  runs the upstream OpenAI SDK example scripts against the shim
 ```
 
 ## Security
 
 - Never commit your `MAG_API_KEY`. `.env` is gitignored; `env.example` carries no secret.
-- The demo ran the sandbox with a permissive policy (`sandboxType:none`) — **harden the
-  `codex exec-server` sandbox policy before any untrusted or production use.**
+- The sandbox is now launched **hardened** by default (`disk-write-cwd` +
+  `disk-full-read-access`), and each session writes only into its own per-session
+  workspace under `SANDBOX_CWD`. Review the policy for your threat model before any
+  untrusted or production use (e.g. drop `disk-full-read-access`, add
+  `network-*` restrictions).
+- Auth passthrough forwards the **caller's** bearer to MAG when present; the env
+  `MAG_API_KEY` is only a fallback. Terminate TLS in front of the shim in any
+  shared deployment.

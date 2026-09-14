@@ -6,6 +6,7 @@ session lifecycle events plus a final answer reflecting the tool result.
 Usage:  python test_shim.py [base_url]
 """
 import json
+import os
 import sys
 
 import httpx
@@ -14,7 +15,7 @@ BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8811"
 
 REQUEST = {
     "agent": {
-        "model": "gpt-5.3-codex",
+        "model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"),
         "instructions": "When asked about weather you MUST call get_weather, then state the "
                         "result in one sentence.",
         "tools": [{"type": "function", "name": "get_weather",

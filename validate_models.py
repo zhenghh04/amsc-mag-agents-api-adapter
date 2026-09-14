@@ -55,5 +55,27 @@ events = {
 for label, e in events.items():
     check(label, lambda e=e: EventAdapter.validate_python(e))
 
+print("=== schema-fidelity events (item/content-part/command/compaction) ===")
+msg_item = M.build_assistant_message(turn_ip["id"], "item_1", "hello world")
+cmd_ip = M.build_command_item(turn_ip["id"], "item_2", "ls -la", status="in_progress")
+cmd_done = M.build_command_item(turn_ip["id"], "item_2", "ls -la", status="completed",
+                                exit_code=0, output="file.txt", cwd="/tmp", duration_ms=12)
+fc_item = M.build_function_call_item(turn_ip["id"], "item_3", "call_1", "shell",
+                                     '{"command":"ls"}', status="completed")
+part = M.build_output_text_part("hello world")
+fidelity_events = {
+    "turn.in_progress": M.ev_turn_in_progress(sess_ip["id"], turn_ip),
+    "turn.item.added (command)": M.ev_turn_item_added(sess_ip["id"], turn_ip["id"], cmd_ip),
+    "turn.item.added (function_call)": M.ev_turn_item_added(sess_ip["id"], turn_ip["id"], fc_item),
+    "turn.item.done (command)": M.ev_turn_item_done(sess_ip["id"], turn_ip["id"], cmd_done),
+    "turn.item.done (message)": M.ev_turn_item_done(sess_ip["id"], turn_ip["id"], msg_item),
+    "content_part.added": M.ev_content_part_added(sess_ip["id"], turn_ip["id"], "item_1", part),
+    "content_part.done": M.ev_content_part_done(sess_ip["id"], turn_ip["id"], "item_1", part),
+    "command_execution_output.delta": M.ev_command_output_delta(sess_ip["id"], turn_ip["id"], "item_2", "file.txt\n"),
+    "subagent.active": M.ev_subagent_active(sub),
+}
+for label, e in fidelity_events.items():
+    check(label, lambda e=e: EventAdapter.validate_python(e))
+
 print("\nRESULT:", "PASS ✅" if ok else "FAIL ❌")
 sys.exit(0 if ok else 1)

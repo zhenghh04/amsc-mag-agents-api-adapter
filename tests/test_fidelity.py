@@ -14,7 +14,10 @@ import sys
 import httpx
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8811"
-MARKER = sys.argv[2] if len(sys.argv) > 2 else "/tmp/mag_sbx_marker.txt"
+# Under the hardened sandbox (disk-write-cwd) the model may only write inside its
+# per-session workspace; we write a RELATIVE filename and locate it via the
+# workspace_directory advertised on the session.created event.
+MARKER_NAME = "mag_sbx_marker.txt"
 
 
 def stream(req):
@@ -38,6 +41,13 @@ def final_text(events):
                  if t == "agent.session.turn.output_text.done"), "")
 
 
+def workspace_dir(events):
+    for t, d in events:
+        if t == "agent.session.created":
+            return (d.get("session", {}).get("environment", {}) or {}).get("workspace_directory")
+    return None
+
+
 ok = True
 def check(c, l):
     global ok; ok = ok and c; print(f"  [{'PASS' if c else 'FAIL'}] {l}")
@@ -45,27 +55,28 @@ def check(c, l):
 
 # ---- A) real sandbox --------------------------------------------------------
 print("=== A) REAL SANDBOX (environment=self_hosted -> codex exec-server) ===")
-if os.path.exists(MARKER):
-    os.remove(MARKER)
 evA = stream({
-    "agent": {"model": "gpt-5.3-codex",
+    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"),
               "instructions": "Use the shell tool to do exactly what the user asks, then answer briefly."},
     "environment": {"type": "self_hosted"},
     "input": [{"role": "user", "content":
-               f"Using the shell tool: write numbers 1..5 (one per line) to {MARKER}, then sum "
-               f"them with awk and tell me the sum."}],
+               f"Using the shell tool: write numbers 1..5 (one per line) to a file named "
+               f"{MARKER_NAME} in the current directory, then sum them with awk and tell me the sum."}],
     "stream": True,
 })
 fa = final_text(evA)
+ws = workspace_dir(evA)
+marker = os.path.join(ws, MARKER_NAME) if ws else None
 check("15" in fa, f"final answer contains 15 -> {fa[:80]!r}")
-check(os.path.exists(MARKER), f"on-disk side effect: {MARKER} created by sandbox")
-if os.path.exists(MARKER):
-    check(open(MARKER).read().split() == ["1", "2", "3", "4", "5"], "file contents correct")
+check(bool(ws), f"session advertised workspace_directory -> {ws}")
+check(bool(marker) and os.path.exists(marker), f"on-disk side effect in workspace: {marker}")
+if marker and os.path.exists(marker):
+    check(open(marker).read().split() == ["1", "2", "3", "4", "5"], "file contents correct")
 
 # ---- B) parallel subagents --------------------------------------------------
 print("\n=== B) PARALLEL SUBAGENTS (multi_agent enabled) ===")
 evB = stream({
-    "agent": {"model": "gpt-5.3-codex",
+    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"),
               "instructions": "Delegate via run_subagent. Spawn the requested subagents in one "
                               "turn (parallel), then summarize their results in one sentence.",
               "multi_agent": {"enabled": True, "max_concurrent_subagents": 2}},
