@@ -25,6 +25,7 @@
     \begin{column}{0.48\textwidth}
       \begin{itemize}
         \item[\faCheckDouble] What's built and proven
+        \item[\faIcon{cogs}] Inside the adapter: loop \& key details
         \item[\faRoute] Two paths, one decision
         \item[\faBullhorn] The one ask to OpenAI
         \item[\faKey] Getting started: MAG token \& run
@@ -183,6 +184,83 @@
     byte-for-byte upstream. Session objects + streaming events validated
     against real \texttt{openai==3.13.0} models --- \textbf{24/24}.
   \end{calloutbox}
+\end{frame}
+
+% ------------------------------------------------------------------ impl: loop
+\begin{frame}{Inside the adapter: the server-side agent loop}
+  \begin{columns}[t, totalwidth=\textwidth]
+    \begin{column}{0.52\textwidth}
+      \begin{featbox}{accentblue}{\faIcon{sync-alt}\ The per-turn loop}
+        \small
+        \setbeamertemplate{itemize items}[circle]
+        \begin{enumerate}
+          \item Client \texttt{POST /v1/agents/sessions} $\rightarrow$ shim opens SSE, emits \texttt{turn.in\_progress}
+          \item Shim calls MAG \texttt{/v1/responses} (\texttt{stream:true}); forwards token deltas \emph{live}
+          \item Model emits \texttt{function\_call} $\rightarrow$ dispatch to sandbox tool $\rightarrow$ feed output back $\rightarrow$ re-call MAG
+          \item Repeat until a final message $\rightarrow$ \texttt{turn.completed}
+        \end{enumerate}
+      \end{featbox}
+    \end{column}
+    \begin{column}{0.04\textwidth}\end{column}
+    \begin{column}{0.44\textwidth}
+      \begin{featbox}{accentteal}{\faIcon{sitemap}\ Module map}
+        \scriptsize
+        \renewcommand{\arraystretch}{1.3}
+        \begin{tabular}{@{}l l@{}}
+          \texttt{mag\_agents\_shim.py} & loop, SSE, sessions, cancel \\
+          \texttt{agents\_api\_models.py} & exact event/item builders \\
+          \texttt{codex\_sandbox.py} & exec-server, fs, patch \\
+          \texttt{mcp\_stdio.py} & MCP over exec-server \\
+        \end{tabular}
+      \end{featbox}
+      \vspace{4pt}
+      \begin{center}
+        {\scriptsize\color{midgray}The loop OpenAI runs server-side ---
+        re-served on top of MAG inference.}
+      \end{center}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------------ impl: details
+\begin{frame}{Three details that made the translation faithful}
+  \begin{columns}[t, totalwidth=\textwidth]
+    \begin{column}{0.32\textwidth}
+      \begin{featbox}{accentteal}{\faIcon{shield-alt}\ Real sandbox}
+        \scriptsize
+        Tools run in \texttt{codex exec-server}, launched \textbf{hardened}
+        (\texttt{disk-write-cwd} + read-only elsewhere), each session its own
+        workspace. A persistent-process \textbf{stdio bridge}
+        (\texttt{process/start}$+$\texttt{process/write}) even drives local
+        \textbf{MCP servers} in-sandbox.
+      \end{featbox}
+    \end{column}
+    \begin{column}{0.02\textwidth}\end{column}
+    \begin{column}{0.32\textwidth}
+      \begin{featbox}{accentblue}{\faIcon{compress-alt}\ Compaction quirk}
+        \scriptsize
+        MAG \texttt{/responses/compact} \textbf{rejects its own} $>$64-char
+        response IDs, so it can't chain by \texttt{previous\_response\_id}.
+        Worked around via the \texttt{\{model,input\}} form; the non-input
+        \texttt{compaction} item is cleaned back into reusable history.
+      \end{featbox}
+    \end{column}
+    \begin{column}{0.02\textwidth}\end{column}
+    \begin{column}{0.32\textwidth}
+      \begin{featbox}{accentteal}{\faIcon{stream}\ Faithful wire}
+        \scriptsize
+        Streaming is a \textbf{live passthrough} of MAG deltas (not post-hoc
+        chunking). A \textbf{cancel-race guard} aborts mid-tool, not just at
+        turn boundaries. Every event/item validated against real
+        \texttt{openai==3.13.0} --- \textbf{24/24}.
+      \end{featbox}
+    \end{column}
+  \end{columns}
+  \vspace{8pt}
+  \begin{center}
+    {\footnotesize\color{midgray}Each was reverse-engineered from MAG / the
+    exec-server live, then locked down with a test.}
+  \end{center}
 \end{frame}
 
 % ------------------------------------------------------------------ two paths
