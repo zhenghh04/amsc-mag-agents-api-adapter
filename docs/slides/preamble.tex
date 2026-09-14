@@ -62,12 +62,25 @@
 }
 
 % Small corner logo on every content slide (title page uses \decklogo directly
-% instead, usually larger — see templates/titlepage.tex). Comment out this
-% \logo{} line if you don't want the small footer/corner logo repeated.
-\logo{\IfFileExists{logos/argonne_logo.pdf}%
-  {\includegraphics[height=0.45cm]{logos/argonne_logo.pdf}}%
+% instead, usually larger — see templates/titlepage.tex). Placed at the
+% LOWER-LEFT via a background overlay (not the default bottom-right sidebar),
+% at 1.5x the previous 0.45cm size = 0.675cm. Suppressed on [plain] frames
+% (title / thanks) so those stay clean.
+\logo{}% clear default bottom-right placement
+\newcommand{\cornerlogo}{\IfFileExists{logos/argonne_logo.pdf}%
+  {\includegraphics[height=0.675cm]{logos/argonne_logo.pdf}}%
   {\IfFileExists{logos/argonne_logo.png}%
-    {\includegraphics[height=0.45cm]{logos/argonne_logo.png}}{}}}
+    {\includegraphics[height=0.675cm]{logos/argonne_logo.png}}{}}}
+\makeatletter
+\addtobeamertemplate{background}{}{%
+  \ifbeamer@plainframe\else
+    \begin{tikzpicture}[remember picture,overlay]
+      \node[anchor=south west, xshift=0.3cm, yshift=0.22cm]
+        at (current page.south west) {\cornerlogo};
+    \end{tikzpicture}%
+  \fi
+}
+\makeatother
 
 % ---------------------------------------------------------------- shadowed boxes
 % House rule: every box gets a shadow. Pick "drop shadow" (crisp) or
