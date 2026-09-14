@@ -183,6 +183,16 @@ def build_function_call_item(turn_id: str, item_id: str, call_id: str, name: str
             "call_id": call_id, "name": name, "arguments": arguments, "status": status}
 
 
+def build_mcp_call_item(turn_id: str, item_id: str, server_label: str, name: str,
+                        arguments, status: str = "in_progress",
+                        output=None, error=None) -> dict:
+    # SDK AgentMcpCallItem: all of id/arguments/error/name/output/server_label/
+    # status/turn_id/type are required (arguments/error/output accept None).
+    return {"id": item_id, "type": "mcp_call", "turn_id": turn_id,
+            "server_label": server_label, "name": name, "arguments": arguments,
+            "status": status, "output": output, "error": error}
+
+
 def ev_turn_item_added(session_id, turn_id, item, output_index=0):
     return _ev("agent.session.turn.item.added", session_id=session_id, turn_id=turn_id,
                item=item, output_index=output_index)

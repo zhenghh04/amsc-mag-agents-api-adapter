@@ -42,6 +42,9 @@ echo; echo "########## TEST 4: context compaction (POST /v1/responses/compact) #
 # Primitive-level: talks to MAG directly (uses MAG_* from .env); no shim server needed.
 python3 tests/test_compaction.py; RC4=$?
 
+echo; echo "########## TEST 5: local MCP servers via exec-server ##########"
+python3 tests/test_mcp.py http://127.0.0.1:8811; RC5=$?
+
 echo; echo "=== shim log (tail) ==="; tail -n 8 /tmp/shim.log
-echo; echo "EXIT CODES: spike=$RC1 fidelity=$RC2 next_steps=$RC3 compaction=$RC4"
-if [ $RC1 -eq 0 ] && [ $RC2 -eq 0 ] && [ $RC3 -eq 0 ] && [ $RC4 -eq 0 ]; then echo "ALL GREEN"; else echo "SOME FAILED"; fi
+echo; echo "EXIT CODES: spike=$RC1 fidelity=$RC2 next_steps=$RC3 compaction=$RC4 mcp=$RC5"
+if [ $RC1 -eq 0 ] && [ $RC2 -eq 0 ] && [ $RC3 -eq 0 ] && [ $RC4 -eq 0 ] && [ $RC5 -eq 0 ]; then echo "ALL GREEN"; else echo "SOME FAILED"; fi

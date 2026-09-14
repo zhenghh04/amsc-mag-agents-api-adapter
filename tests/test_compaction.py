@@ -24,6 +24,9 @@ if not os.environ.get("MAG_BASE_URL") or not os.environ.get("MAG_API_KEY"):
     print("SKIP: MAG_BASE_URL / MAG_API_KEY not set")
     sys.exit(0)
 
+# The shim module lives at the repo root (parent of tests/); make it importable
+# regardless of the cwd the runner used.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import mag_agents_shim as shim  # imports after env is set (reads MAG_* at import)
 
 MODEL = os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex")

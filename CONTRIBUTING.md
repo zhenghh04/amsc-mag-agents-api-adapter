@@ -17,18 +17,19 @@ cp env.example .env                   # set MAG_API_KEY (one unbroken line)
 bash scripts/run_all.sh               # boots hardened exec-server + shim, runs all suites
 ```
 
-All four suites must stay green:
+All five suites must stay green:
 - `tests/test_shim.py` — function-tool loop over MAG
 - `tests/test_fidelity.py` — real on-disk sandbox effect + parallel subagents
 - `tests/test_next_steps.py` — streaming deltas, apply_patch, auth passthrough, persistence, cancel
 - `tests/test_compaction.py` — `/v1/responses/compact` (early fact survives, compacted result reusable)
+- `tests/test_mcp.py` — local (stdio) MCP server via exec-server (discovery + call + on-disk effect)
 
 If you touch the emitted session objects or streaming events, also run the
 offline SDK-contract check:
 
 ```bash
 pip install 'openai==3.13.0'
-python3 validate_models.py            # must be 22/22
+python3 validate_models.py            # must be 24/24
 ```
 
 And, when practical, re-run the upstream OpenAI SDK examples unchanged:
@@ -52,12 +53,14 @@ bash scripts/run_examples.sh          # see the script header for the checkout s
 
 ## Roadmap (remaining unchecked rows in the README fidelity table)
 
-- Local MCP servers exposed through `codex exec-server` to the agent loop
 - Multi-user-turn session resume (`GET` then continue) so compaction spans turns
 - OpenAI-hosted `environment` type (managed container) parity
+- HTTP-transport / `connection_origin:service` (hosted) MCP servers — this adapter
+  currently implements the stdio / `environment` (in-sandbox) transport
+- MCP approval flow (`mcp_approval_request` / `mcp_approval_response` items)
 
 Done since the initial spike: native streaming passthrough, context compaction,
 `apply_patch`/`fs` tools, richer event schema, auth passthrough, persistence,
-cancel, and sandbox hardening.
+cancel, sandbox hardening, and **local (stdio) MCP servers via exec-server**.
 
 Please open an issue describing the change before a large PR.

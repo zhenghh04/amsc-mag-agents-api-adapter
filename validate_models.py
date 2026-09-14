@@ -73,6 +73,11 @@ fidelity_events = {
     "content_part.done": M.ev_content_part_done(sess_ip["id"], turn_ip["id"], "item_1", part),
     "command_execution_output.delta": M.ev_command_output_delta(sess_ip["id"], turn_ip["id"], "item_2", "file.txt\n"),
     "subagent.active": M.ev_subagent_active(sub),
+    "turn.item.added (mcp_call)": M.ev_turn_item_added(sess_ip["id"], turn_ip["id"],
+        M.build_mcp_call_item(turn_ip["id"], "item_4", "calc", "add", {"a": 2, "b": 3}, status="in_progress")),
+    "turn.item.done (mcp_call)": M.ev_turn_item_done(sess_ip["id"], turn_ip["id"],
+        M.build_mcp_call_item(turn_ip["id"], "item_4", "calc", "add", {"a": 2, "b": 3},
+                              status="completed", output="5")),
 }
 for label, e in fidelity_events.items():
     check(label, lambda e=e: EventAdapter.validate_python(e))

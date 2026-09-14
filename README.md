@@ -116,15 +116,25 @@ PASS: shell invoked · answer=15 · file created ON DISK · contents == [1,2,3,4
 PASS: 2 subagents started+completed · both results in final answer
 ```
 
+**`tests/test_mcp.py`** — local (stdio) MCP servers via exec-server:
+```
+agent.tools: [{type:"mcp", transport:{type:"stdio", command:python, args:[fixture]}}]
+→ shim launches the MCP server as a PROCESS in the codex sandbox
+→ MCP initialize → tools/list  (add, write_file discovered)
+→ model calls mcp_fixture_add(2,40) → tools/call → mcp_call item output "42"
+→ model calls mcp_fixture_write_file → file lands ON DISK in the sandbox write-scope
+PASS: discovery + call + real side-effect, surfaced as Agents-API mcp_call items
+```
+
 So the chain is: Agents API contract in → MAG `/v1/responses` inference →
 model-chosen tool call → **real execution in the codex exec-server sandbox** (or a
-**concurrent subagent** with its own sandbox) → `previous_response_id` chaining →
-Agents-API SSE out.
+**concurrent subagent** with its own sandbox, or a **local MCP server** launched in
+that sandbox) → `previous_response_id` chaining → Agents-API SSE out.
 
 ## Tested against the official OpenAI Agents API SDK
 
 The shim emits **SDK-faithful** objects — every session object and streaming event
-is validated against the real `openai==3.13.0` models (`validate_models.py`, 13/13). We
+is validated against the real `openai==3.13.0` models (`validate_models.py`, 24/24). We
 ran [Rick Stevens' example scripts](https://github.com/rick-stevens-ai/openai-agents-api-examples)
 **unchanged**, pointing only `OPENAI_BASE_URL` at the shim:
 
@@ -154,7 +164,7 @@ byte-for-byte the upstream repo. Reproduce with `bash scripts/run_examples.sh`
 | Richer event schema (turn.in_progress, item.added/done, content_part.*, command_execution_output.delta, subagent.active) | ✅ |
 | Auth passthrough (caller bearer → MAG), persistence (`GET`), cancel (`POST …/cancel`) | ✅ |
 | Sandbox policy hardening (`disk-write-cwd` + per-session workspace; no more `sandboxType:none`) | ✅ |
-| Local MCP servers via exec-server | ⬜ |
+| **Local (stdio) MCP servers via exec-server** (`type:mcp` tools launched in-sandbox; `tools/list` discovery → model calls → `mcp_call` items) | ✅ |
 
 ### Implementation note (a real bug we hit + fixed)
 `codex exec-server` can deliver the final `process/output` frame **after**
@@ -223,16 +233,19 @@ until OpenAI adds a native `base_url` hook (the product ask in the brief).
 
 ```
 mag_agents_shim.py       FastAPI translation service (agent loop, tools, subagents, streaming,
-                         compaction, auth passthrough, persistence, cancel)
+                         compaction, MCP servers, auth passthrough, persistence, cancel)
 agents_api_models.py     SDK-faithful builders for session objects + streaming events
 codex_sandbox.py         client for OpenAI's OSS `codex exec-server` (shell + fs_read/fs_write)
+mcp_stdio.py             drives a local (stdio) MCP server as a process IN the exec-server sandbox
 apply_patch.py           parser/applier for the OpenAI apply_patch envelope (Add/Update/Delete File)
-validate_models.py       offline check that our builders parse against openai==3.13.0 models (22/22)
+validate_models.py       offline check that our builders parse against openai==3.13.0 models (24/24)
 tests/test_shim.py       smoke test (function tool, SDK event schema)
 tests/test_fidelity.py   real-sandbox (on-disk) + parallel-subagent test
 tests/test_next_steps.py streaming deltas, apply_patch, auth passthrough, persistence, cancel
 tests/test_compaction.py context compaction via /v1/responses/compact (early fact survives)
-scripts/run_all.sh       starts hardened exec-server + shim, runs all four test suites
+tests/test_mcp.py        local MCP server via exec-server (discovery + call + on-disk effect)
+tests/mcp_server_fixture.py  minimal stdio MCP server used by test_mcp.py
+scripts/run_all.sh       starts hardened exec-server + shim, runs all five test suites
 scripts/run_examples.sh  runs the upstream OpenAI SDK example scripts against the shim
 ```
 

@@ -23,6 +23,10 @@ Capabilities:
   * context compaction via POST /v1/responses/compact once a turn chain grows
   * real sandbox tools via OpenAI's OSS `codex exec-server` (env self_hosted):
     shell, fs_read, fs_write, apply_patch
+  * local (stdio) MCP servers: agent tools of type:mcp with a stdio transport are
+    launched as processes IN the exec-server sandbox; their tools are discovered
+    (tools/list) and exposed to the model, and calls route back over MCP JSON-RPC
+    (tools/call), surfaced as Agents-API mcp_call turn items
   * subagents (agent.multi_agent.enabled) run concurrently under max_concurrent_subagents
   * auth passthrough: the caller's Authorization bearer is forwarded to MAG
   * session persistence + cancel: GET /v1/agents/sessions/{id},
@@ -52,6 +56,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import agents_api_models as M
 from apply_patch import PatchError, apply_hunks, parse_patch
 from codex_sandbox import SandboxClient
+from mcp_stdio import McpStdioSession
 
 MAG_BASE = os.environ.get("MAG_BASE_URL", "").rstrip("/")
 MAG_KEY = os.environ.get("MAG_API_KEY", "")
@@ -123,6 +128,36 @@ def _tool_get_weather(city: str = "") -> str:
 LOCAL_FUNCS = {"get_weather": _tool_get_weather}
 
 Emit = Callable[[dict], Awaitable[None]]
+
+
+# --------------------------------------------------------------------------- #
+# Local (stdio) MCP servers via exec-server
+# --------------------------------------------------------------------------- #
+def _sanitize_tool_name(s: str) -> str:
+    return "".join(c if (c.isalnum() or c in "_-") else "_" for c in s)
+
+
+def _parse_mcp_specs(tools: list[dict]) -> list[dict]:
+    """Extract Agents-API `type:mcp` tool declarations with a `stdio` transport
+    (McpTransportResourceStdio) — a local MCP server launched in the execution
+    environment. HTTP-transport / `connection_origin:service` (hosted) MCP servers
+    are out of this adapter's scope and are skipped."""
+    specs: list[dict] = []
+    for t in tools or []:
+        if not isinstance(t, dict) or t.get("type") != "mcp":
+            continue
+        transport = t.get("transport") or {}
+        if transport.get("type") != "stdio":
+            continue
+        specs.append({
+            "server_label": t.get("server_label") or "mcp",
+            "command": transport.get("command", ""),
+            "args": transport.get("args") or [],
+            "cwd": transport.get("cwd") or os.environ.get("SANDBOX_CWD", "/tmp"),
+            "env_vars": transport.get("env_vars") or [],
+            "allowed_tools": t.get("allowed_tools"),
+        })
+    return specs
 
 
 # --------------------------------------------------------------------------- #
@@ -239,7 +274,7 @@ def _last_user_index(history: list[dict]) -> int:
 class SessionCtx:
     """Per-session state shared across the root loop and its subagents."""
     def __init__(self, agent_obj: dict, sandbox_enabled: bool, subagents_enabled: bool,
-                 max_subagents: int, auth: str):
+                 max_subagents: int, auth: str, mcp_specs: list[dict] | None = None):
         self.agent = agent_obj
         self.agent_id = agent_obj["id"]
         self.session_id = M.build_session(agent_obj, {"type": "none"})["id"]
@@ -247,6 +282,12 @@ class SessionCtx:
         self.subagents_enabled = subagents_enabled
         self.sem = asyncio.Semaphore(max(1, max_subagents))
         self.auth = auth
+        # Local MCP servers (stdio, launched via exec-server). Populated at parse
+        # time; live sessions + the exposed-name -> (session, tool, label) routing
+        # map are filled when the root turn boots them.
+        self.mcp_specs = mcp_specs or []
+        self.mcp_sessions: list[McpStdioSession] = []
+        self.mcp_router: dict[str, tuple] = {}
         # Each session writes into its own workspace dir (hardening: the sandbox is
         # allowed to write here, not the whole filesystem).
         self.workspace = os.path.join(os.environ.get("SANDBOX_CWD", "/tmp"),
@@ -316,6 +357,36 @@ async def _apply_patch_in_sandbox(sandbox: SandboxClient, patch_text: str) -> di
     return {"ok": True, "applied": applied}
 
 
+async def _boot_mcp(ctx: SessionCtx) -> list[dict]:
+    """Launch each declared local MCP server via exec-server, discover its tools,
+    and return them as MAG function-tool schemas (namespaced). Populates
+    ctx.mcp_router so calls route back to the right server/tool. Best-effort per
+    server: a server that fails to start is skipped, not fatal."""
+    exposed: list[dict] = []
+    for spec in ctx.mcp_specs:
+        try:
+            sess = await McpStdioSession(
+                SANDBOX_URI, spec["server_label"], spec["command"], spec["args"],
+                spec["cwd"], spec["env_vars"]).start()
+        except Exception:
+            continue
+        ctx.mcp_sessions.append(sess)
+        allowed = spec.get("allowed_tools")
+        for tool in sess.tools:
+            tname = tool.get("name")
+            if not tname or (allowed and tname not in allowed):
+                continue
+            exposed_name = _sanitize_tool_name(f"mcp_{spec['server_label']}_{tname}")
+            ctx.mcp_router[exposed_name] = (sess, tname, spec["server_label"])
+            exposed.append({
+                "type": "function", "name": exposed_name,
+                "description": tool.get("description")
+                or f"MCP tool '{tname}' on server '{spec['server_label']}'.",
+                "parameters": tool.get("inputSchema") or {"type": "object", "properties": {}},
+            })
+    return exposed
+
+
 # --------------------------------------------------------------------------- #
 # Agent loop (root turn + subagents)
 # --------------------------------------------------------------------------- #
@@ -338,7 +409,10 @@ async def _run_loop(ctx: SessionCtx, agent_cfg: dict, input_items: list[dict],
                     emit: Emit, turn_id: str, depth: int) -> str:
     model = agent_cfg.get("model") or ctx.agent["model"]
     instructions = agent_cfg.get("instructions")
-    tools = list(agent_cfg.get("tools") or [])
+    # Raw `type:mcp` declarations are not MAG tools — they're replaced below by the
+    # function tools discovered from each MCP server (_boot_mcp).
+    tools = [t for t in (agent_cfg.get("tools") or [])
+             if not (isinstance(t, dict) and t.get("type") == "mcp")]
     if ctx.sandbox_enabled:
         tools.extend(SANDBOX_TOOLS)
     if depth == 0 and ctx.subagents_enabled:
@@ -350,6 +424,11 @@ async def _run_loop(ctx: SessionCtx, agent_cfg: dict, input_items: list[dict],
         # policy the sandbox cannot create its own cwd, and the cwd must exist.
         os.makedirs(ctx.workspace, exist_ok=True)
         sandbox = await SandboxClient(SANDBOX_URI, workspace=ctx.workspace).connect()
+
+    # Local MCP servers: boot once, at the root turn. Their discovered tools become
+    # function tools the model can call; routing lives on ctx.mcp_router.
+    if depth == 0 and ctx.mcp_specs and SANDBOX_URI:
+        tools.extend(await _boot_mcp(ctx))
 
     msg_item_id = M._id("item")
     part_opened = False
@@ -436,6 +515,14 @@ async def _run_loop(ctx: SessionCtx, agent_cfg: dict, input_items: list[dict],
     finally:
         if sandbox is not None:
             await sandbox.close()
+        if depth == 0 and ctx.mcp_sessions:
+            for sess in ctx.mcp_sessions:
+                try:
+                    await sess.close()
+                except Exception:
+                    pass
+            ctx.mcp_sessions = []
+            ctx.mcp_router = {}
 
 
 async def _dispatch_call(ctx: SessionCtx, sandbox: SandboxClient | None, model: str,
@@ -446,6 +533,25 @@ async def _dispatch_call(ctx: SessionCtx, sandbox: SandboxClient | None, model: 
         args = json.loads(fc.get("arguments") or "{}")
     except json.JSONDecodeError:
         args = {}
+
+    if name in ctx.mcp_router:
+        sess, tool_name, server_label = ctx.mcp_router[name]
+        item_id = M._id("item")
+        if depth == 0:
+            await emit(M.ev_turn_item_added(ctx.session_id, turn_id,
+                M.build_mcp_call_item(turn_id, item_id, server_label, tool_name, args,
+                                      status="in_progress")))
+        try:
+            res = await sess.call_tool(tool_name, args)
+            out, err, status = res["output"], None, ("failed" if res["is_error"] else "completed")
+        except Exception as exc:
+            out, err, status = "", {"type": "tool", "message": str(exc)}, "failed"
+        if depth == 0:
+            await emit(M.ev_turn_item_done(ctx.session_id, turn_id,
+                M.build_mcp_call_item(turn_id, item_id, server_label, tool_name, args,
+                                      status=status, output=out or None, error=err)))
+        return {"type": "function_call_output", "call_id": call_id,
+                "output": out if not err else json.dumps({"error": err["message"]})}
 
     if name in _COMMAND_TOOLS and sandbox is not None:
         item_id = M._id("item")
@@ -507,8 +613,12 @@ def _parse(payload: dict, auth: str) -> tuple[SessionCtx, dict, list[dict]]:
     subagents_enabled = bool(ma.get("enabled", False))
     max_sub = ma.get("max_concurrent_subagents") or 3
 
+    # Local (stdio) MCP servers run via exec-server, regardless of environment.type.
+    mcp_specs = _parse_mcp_specs(agent_req.get("tools") or [])
+
     agent_obj = M.build_agent(agent_req)
-    ctx = SessionCtx(agent_obj, sandbox_enabled, subagents_enabled, max_sub, auth)
+    ctx = SessionCtx(agent_obj, sandbox_enabled, subagents_enabled, max_sub, auth,
+                     mcp_specs=mcp_specs)
 
     raw_input = payload.get("input", [])
     input_items = [{"role": "user", "content": raw_input}] if isinstance(raw_input, str) else raw_input
