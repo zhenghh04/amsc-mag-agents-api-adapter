@@ -39,6 +39,44 @@ So the adapter only has to own: (1) the Agents API HTTP/SSE contract, (2) the
 `function_call` → execute → `function_call_output` → re-call loop, (3) a
 tool-execution environment.
 
+## Getting a MAG API token
+
+MAG = **Model Access Gateway**, the OpenAI-/Anthropic-compatible inference gateway
+run on the [American Science Cloud](https://american-science-cloud.org) (AmSC).
+You need a **Personal Access Token (PAT)** from the AmSC portal — the same token
+this adapter reads as `MAG_API_KEY`.
+
+1. **Log in to the portal.** Go to
+   <https://portal-lite.genesis.american-science-cloud.org/> and authorize
+   through **Ping Identity** (the AmSC IdP).
+2. **Select your project.** Pick your Genesis Mission RFA project and click
+   **switch**.
+3. **Generate the PAT.** Open the **Personal Access Tokens** section →
+   **Generate PAT** → select your project → **Continue**. The token is shown
+   **once** — **copy it before closing the dialog.**
+
+That PAT is your bearer token for both wire APIs:
+
+| API flavor | Base URL |
+|---|---|
+| OpenAI-compatible (what this adapter drives) | `https://i2-api.genesis.american-science-cloud.org/v1` |
+| Anthropic-compatible (e.g. Claude Code) | `https://i2-api.genesis.american-science-cloud.org` |
+
+**Sanity-check the token** by listing the models it can reach:
+
+```bash
+curl -s https://i2-api.genesis.american-science-cloud.org/v1/models \
+  -H "Authorization: Bearer $MAG_API_KEY" | jq
+```
+
+Then paste that PAT into `.env` as `MAG_API_KEY` (see step 1 of Quick start).
+
+> Full MAG docs (including the Anthropic-compatible / Claude Code env-var set):
+> <https://amsc-docs-d762d2.gitlab.io/model-access-gateway/> ·
+> AmSC overview: <https://docs.amsc.energy.gov/>. The sibling scaffold
+> [`zhenghh04/amsc_agentic_workflows`](https://github.com/zhenghh04/amsc_agentic_workflows)
+> documents the wider AmSC `.env` / token conventions for the facility MCP servers.
+
 ## Quick start
 
 ```bash
@@ -47,7 +85,8 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 npm install -g @openai/codex        # provides `codex exec-server` (real sandbox)
 
-# 1. configure — paste your AMSC bearer token as ONE unbroken line
+# 1. configure — paste your AMSC bearer token (PAT) as ONE unbroken line
+#    (see "Getting a MAG API token" above for how to generate one)
 cp env.example .env
 $EDITOR .env                        # set MAG_API_KEY
 
