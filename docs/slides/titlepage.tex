@@ -1,0 +1,29 @@
+% beamer-slides house title page.
+% Requires preamble.tex to be loaded first (\decklogo, \deckauthor, \deckemail,
+% \deckinstitute). Set \title{}/\subtitle{} and \date{} before this frame.
+%
+% Hard rule: title page always shows author name, email, and date. Email sits
+% bottom-left in small type, footnote-style — not in the author block.
+
+\begin{frame}[plain]
+  \begin{columns}[c]
+    \begin{column}{0.32\textwidth}
+      \centering
+      \decklogo[0.9\textwidth]
+    \end{column}
+    \begin{column}{0.66\textwidth}
+      {\usebeamerfont{title}\usebeamercolor[fg]{title}\Huge\bfseries \inserttitle\par}
+      \ifx\insertsubtitle\@empty\else
+        \vspace{4pt}
+        {\large\color{midgray}\insertsubtitle\par}
+      \fi
+      \vspace{18pt}
+      {\small
+        \deckauthor\\
+        \deckinstitute\\
+        \insertdate}
+    \end{column}
+  \end{columns}
+  \vfill
+  {\footnotesize\color{midgray}\deckemail\par}
+\end{frame}

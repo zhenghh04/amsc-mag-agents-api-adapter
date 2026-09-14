@@ -1,0 +1,103 @@
+% beamer-slides house preamble.
+% Copy into a new deck and edit \deckauthor / \deckemail / \deckdate / colors.
+% Build: xelatex deck.tex (run twice). See ../SKILL.md for the full house style.
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usetheme{metropolis}
+\usepackage{fontspec}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{fontawesome5}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{array}
+
+% ---------------------------------------------------------------- palette
+% Placeholder professional navy/accent palette — swap for the exact ANL/ALCF
+% brand hex values if you have the brand guide; do not present these as
+% "official" institutional colors.
+\definecolor{labnavy}{RGB}{18,42,73}
+\definecolor{labink}{RGB}{40,44,52}
+\definecolor{accentgold}{RGB}{223,161,54}
+\definecolor{accentteal}{RGB}{0,137,123}
+\definecolor{accentblue}{RGB}{41,98,168}
+\definecolor{lightgray}{RGB}{245,246,248}
+\definecolor{midgray}{RGB}{110,118,129}
+
+% Hard rule: background is always white.
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{palette primary}{bg=labnavy,fg=white}
+\setbeamercolor{frametitle}{bg=labnavy,fg=white}
+\setbeamercolor{progress bar}{fg=accentteal,bg=lightgray}
+\setbeamercolor{normal text}{fg=labink}
+\setbeamercolor{alerted text}{fg=accentgold}
+\setbeamercolor{footline}{fg=midgray}
+\setbeamerfont{footline}{size=\tiny}
+
+% Tighter default itemize indentation (see SKILL.md Gotchas — do NOT pass
+% [leftmargin=...] to Beamer's itemize, that slot is for overlay specs).
+\setlength{\leftmargini}{14pt}
+
+% ---------------------------------------------------------------- deck metadata
+% Fill these in per-deck. Email + date are a hard rule on the title page.
+\newcommand{\deckauthor}{Huihuo Zheng}
+\newcommand{\deckemail}{huihuo.zheng@anl.gov}
+\newcommand{\deckinstitute}{Argonne Leadership Computing Facility (ALCF)}
+% \date{...} still needs to be called explicitly in the document, e.g. \date{\today}
+
+% ---------------------------------------------------------------- logo
+% Looks for a real logo file first; falls back to a plain text lockup rather
+% than fabricating the institutional mark. Put the real file at
+% logos/argonne_logo.pdf (or .png) next to the deck, or point this at a
+% shared assets/logos/ path.
+\newcommand{\decklogo}[1][0.16\textwidth]{%
+  \IfFileExists{logos/argonne_logo.pdf}%
+    {\includegraphics[width=#1]{logos/argonne_logo.pdf}}%
+    {\IfFileExists{logos/argonne_logo.png}%
+      {\includegraphics[width=#1]{logos/argonne_logo.png}}%
+      {\textbf{\textsc{\textcolor{labnavy}{Argonne National Laboratory}}}}}%
+}
+
+% Small corner logo on every content slide (title page uses \decklogo directly
+% instead, usually larger — see templates/titlepage.tex). Comment out this
+% \logo{} line if you don't want the small footer/corner logo repeated.
+\logo{\IfFileExists{logos/argonne_logo.pdf}%
+  {\includegraphics[height=0.45cm]{logos/argonne_logo.pdf}}%
+  {\IfFileExists{logos/argonne_logo.png}%
+    {\includegraphics[height=0.45cm]{logos/argonne_logo.png}}{}}}
+
+% ---------------------------------------------------------------- shadowed boxes
+% House rule: every box gets a shadow. Pick "drop shadow" (crisp) or
+% "drop fuzzy shadow" (soft) and use it consistently through one deck.
+% IMPORTANT: "enhanced" is required for the shadow to render at all — without
+% it tcolorbox silently accepts the "drop shadow"/"drop fuzzy shadow" key and
+% draws nothing (no error, no warning). See SKILL.md Gotchas.
+\newtcolorbox{featbox}[2]{
+  enhanced,
+  colback=lightgray, colframe=#1, boxrule=0.6pt, arc=3pt,
+  left=6pt, right=6pt, top=4pt, bottom=4pt,
+  title=#2, colbacktitle=#1, coltitle=white,
+  fonttitle=\bfseries\small, boxsep=1pt,
+  drop fuzzy shadow
+}
+
+\newtcolorbox{calloutbox}[1][labnavy]{
+  enhanced,
+  colback=#1!6, colframe=#1, boxrule=0.6pt, arc=3pt,
+  left=10pt, right=10pt, top=6pt, bottom=6pt,
+  drop fuzzy shadow
+}
+
+\lstdefinestyle{shell}{
+  basicstyle=\ttfamily\scriptsize\color{labink},
+  keywordstyle=\color{accentblue}\bfseries,
+  commentstyle=\color{midgray}\itshape,
+  stringstyle=\color{accentteal},
+  backgroundcolor=\color{lightgray},
+  frame=single, framerule=0.4pt, rulecolor=\color{midgray!60},
+  breaklines=true, columns=fullflexible,
+  xleftmargin=4pt, xrightmargin=4pt, framexleftmargin=4pt
+}

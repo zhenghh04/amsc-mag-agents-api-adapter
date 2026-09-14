@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="440" viewBox="0 0 960 440" font-family="Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="960" height="440" fill="white"/>
+
+  <!-- ===================== SDK client ===================== -->
+  <rect x="24" y="150" width="180" height="140" rx="10" fill="#f5f6f8" stroke="#2962a8" stroke-width="1.6"/>
+  <text x="114" y="180" text-anchor="middle" font-size="16" font-weight="bold" fill="#122a49">OpenAI Agents</text>
+  <text x="114" y="200" text-anchor="middle" font-size="16" font-weight="bold" fill="#122a49">API SDK</text>
+  <text x="114" y="226" text-anchor="middle" font-size="12" fill="#6e7681">client.beta.agents</text>
+  <text x="114" y="246" text-anchor="middle" font-size="12" fill="#6e7681">(unchanged code)</text>
+  <text x="114" y="272" text-anchor="middle" font-size="11.5" fill="#00897b" font-weight="bold">base_url &#8594; shim</text>
+
+  <!-- ===================== The shim ===================== -->
+  <rect x="300" y="70" width="330" height="300" rx="12" fill="#ffffff" stroke="#122a49" stroke-width="2"/>
+  <text x="465" y="98" text-anchor="middle" font-size="17" font-weight="bold" fill="#122a49">Translation layer (shim)</text>
+  <text x="465" y="117" text-anchor="middle" font-size="11.5" fill="#6e7681">FastAPI &#183; POST /v1/agents/sessions</text>
+
+  <rect x="322" y="134" width="286" height="58" rx="8" fill="#f5f6f8" stroke="#2962a8" stroke-width="1.4"/>
+  <text x="465" y="158" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#122a49">Agent loop</text>
+  <text x="465" y="178" text-anchor="middle" font-size="11" fill="#6e7681">function_call &#8594; exec &#8594; output &#8594; re-call</text>
+
+  <rect x="322" y="204" width="286" height="58" rx="8" fill="#f5f6f8" stroke="#00897b" stroke-width="1.4"/>
+  <text x="465" y="228" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#122a49">Tool + subagent layer</text>
+  <text x="465" y="248" text-anchor="middle" font-size="11" fill="#6e7681">concurrent subagents &#183; SSE out</text>
+
+  <rect x="322" y="274" width="286" height="72" rx="8" fill="#f5f6f8" stroke="#dfa136" stroke-width="1.4"/>
+  <text x="465" y="298" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#122a49">codex exec-server</text>
+  <text x="465" y="317" text-anchor="middle" font-size="11" fill="#6e7681">real sandbox &#183; JSON-RPC / WS</text>
+  <text x="465" y="335" text-anchor="middle" font-size="11" fill="#6e7681">on-disk shell execution</text>
+
+  <!-- ===================== MAG ===================== -->
+  <rect x="756" y="150" width="180" height="140" rx="10" fill="#f5f6f8" stroke="#00897b" stroke-width="1.6"/>
+  <text x="846" y="182" text-anchor="middle" font-size="16" font-weight="bold" fill="#122a49">MAG</text>
+  <text x="846" y="204" text-anchor="middle" font-size="12" fill="#6e7681">Kong &#8594; LiteLLM</text>
+  <text x="846" y="230" text-anchor="middle" font-size="12.5" fill="#122a49" font-weight="bold">POST /v1/responses</text>
+  <text x="846" y="252" text-anchor="middle" font-size="11" fill="#6e7681">gpt-5.3-codex &#183; 157 models</text>
+  <text x="846" y="272" text-anchor="middle" font-size="11" fill="#00897b" font-weight="bold">OpenAI-compatible</text>
+
+  <!-- ===================== arrows ===================== -->
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#6e7681"/>
+    </marker>
+  </defs>
+  <!-- client <-> shim -->
+  <line x1="204" y1="204" x2="298" y2="204" stroke="#6e7681" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="298" y1="236" x2="206" y2="236" stroke="#6e7681" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="251" y="196" text-anchor="middle" font-size="10.5" fill="#6e7681">request</text>
+  <text x="251" y="252" text-anchor="middle" font-size="10.5" fill="#6e7681">SSE stream</text>
+
+  <!-- shim <-> MAG -->
+  <line x1="632" y1="204" x2="754" y2="204" stroke="#6e7681" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="754" y1="236" x2="634" y2="236" stroke="#6e7681" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="693" y="196" text-anchor="middle" font-size="10.5" fill="#6e7681">inference</text>
+  <text x="693" y="252" text-anchor="middle" font-size="10.5" fill="#6e7681">tokens</text>
+
+  <!-- caption -->
+  <text x="480" y="410" text-anchor="middle" font-size="12.5" fill="#122a49">The shim owns the agent loop + tools; MAG serves only inference. Only the client's <tspan font-weight="bold">base_url</tspan> changes.</text>
+</svg>

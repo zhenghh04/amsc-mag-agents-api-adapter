@@ -20,6 +20,7 @@ with tools executed in OpenAI's open-source **`codex exec-server`** sandbox.
 - [`docs/architecture.md`](docs/architecture.md) — data flow + module map (Mermaid; renders on GitHub)
 - [`docs/architecture.html`](docs/architecture.html) — self-contained visual diagram (open in a browser)
 - [`docs/BRIEF_MAG_Agents_API.md`](docs/BRIEF_MAG_Agents_API.md) — one-page brief: test matrix, the managed-Agents-API `base_url` product ask, and this repo as the working proof
+- [`docs/slides/deck.pdf`](docs/slides/deck.pdf) — slide deck walking through the whole story (feasibility, the SDK-vs-API crux, the proof, the ask, getting a MAG token); LaTeX sources alongside
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — dev setup, test gates, roadmap
 
 ## Why this is a thin adapter, not a harness rewrite
