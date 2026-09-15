@@ -21,6 +21,7 @@ with tools executed in OpenAI's open-source **`codex exec-server`** sandbox.
 - [`docs/architecture.html`](docs/architecture.html) — self-contained visual diagram (open in a browser)
 - [`docs/BRIEF_MAG_Agents_API.md`](docs/BRIEF_MAG_Agents_API.md) — one-page brief: test matrix, the managed-Agents-API `base_url` product ask, and this repo as the working proof
 - [`docs/slides/deck.pdf`](docs/slides/deck.pdf) — slide deck walking through the whole story (feasibility, the SDK-vs-API crux, the proof, the ask, getting a MAG token); LaTeX sources alongside
+- [`examples/`](examples/) — runnable examples (stock OpenAI SDK, only `base_url` swapped), incl. [`examples/codex_subagents.py`](examples/codex_subagents.py) — **full codex subagents on MAG**: a coordinator fans out to parallel subagents, each a full codex agent doing real sandboxed coding (`bash`/`fs`/`apply_patch`). Run with `bash scripts/run_codex_subagents.sh`
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — dev setup, test gates, roadmap
 
 ## Why this is a thin adapter, not a harness rewrite
@@ -285,8 +286,11 @@ tests/test_next_steps.py streaming deltas, apply_patch, auth passthrough, persis
 tests/test_compaction.py context compaction via /v1/responses/compact (early fact survives)
 tests/test_mcp.py        local MCP server via exec-server (discovery + call + on-disk effect)
 tests/mcp_server_fixture.py  minimal stdio MCP server used by test_mcp.py
+examples/codex_subagents.py  full codex subagents on MAG (self_hosted sandbox + multi_agent)
+examples/common.py       stock-SDK event pretty-printer shared by the examples
 scripts/run_all.sh       starts hardened exec-server + shim, runs all five test suites
 scripts/run_examples.sh  runs the upstream OpenAI SDK example scripts against the shim
+scripts/run_codex_subagents.sh  boots exec-server + shim and runs examples/codex_subagents.py
 ```
 
 ## Security
