@@ -24,7 +24,7 @@ Gateway (MAG) at scale — and what, precisely, to ask OpenAI for.
 
 | Endpoint / capability | Result | Meaning |
 |---|---|---|
-| `GET /v1/models` | **200** | inference alive; 157 models incl. `gpt-5.3-codex` |
+| `GET /v1/models` | **200** | inference alive; 157 models incl. `gpt-6-astra@openai` |
 | `POST /v1/responses` (Codex default wire API) | **200** | Codex works out of the box |
 | `POST /v1/chat/completions` | **200** | OpenAI-compatible fallback |
 | model-emitted `function_call` | ✅ | tool-calling works |

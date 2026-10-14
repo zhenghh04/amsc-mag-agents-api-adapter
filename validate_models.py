@@ -22,7 +22,7 @@ def check(label, fn):
     except Exception as e:
         ok = False; print(f"  [FAIL] {label}\n         {str(e)[:300]}")
 
-req = {"model": "gpt-5.3-codex", "instructions": "hi",
+req = {"model": "gpt-6-astra@openai", "instructions": "hi",
        "multi_agent": {"enabled": True, "max_concurrent_subagents": 2}}
 agent = M.build_agent(req)
 env = M.build_environment({"type": "none"})

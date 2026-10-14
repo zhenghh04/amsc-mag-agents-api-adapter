@@ -10,7 +10,7 @@
 #   - a .env at repo root: `cp env.example .env` then set MAG_API_KEY (and MAG_BASE_URL)
 #
 # Env knobs:
-#   OPENAI_AGENTS_MODEL   codex-capable Responses model (default openai/gpt-5.3-codex)
+#   OPENAI_AGENTS_MODEL   codex-capable Responses model (default gpt-6-astra@openai)
 #   AGENTS_RAW=1          dump raw JSON events instead of the pretty view
 #   SHIM_PORT             shim port (default 8811)
 #   SANDBOX_URI           exec-server ws URI (default ws://127.0.0.1:8790)
@@ -39,7 +39,7 @@ echo "healthz: $(cat /tmp/h)"
 # Point the stock OpenAI SDK at the shim.
 export OPENAI_BASE_URL="http://127.0.0.1:${SHIM_PORT}/v1"
 export OPENAI_API_KEY="$MAG_API_KEY"
-export OPENAI_AGENTS_MODEL="${OPENAI_AGENTS_MODEL:-openai/gpt-5.3-codex}"
+export OPENAI_AGENTS_MODEL="${OPENAI_AGENTS_MODEL:-gpt-6-astra@openai}"
 
 # Client python needs openai>=3.13 (Agents API surface). Prefer an explicit
 # EXAMPLE_PYTHON, then a repo-local .venv, else python3.

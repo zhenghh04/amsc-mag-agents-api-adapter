@@ -49,7 +49,7 @@ You need a **Personal Access Token (PAT)** from the AmSC portal — the same tok
 this adapter reads as `MAG_API_KEY`.
 
 1. **Log in to the portal.** Go to
-   <https://portal-lite.genesis.american-science-cloud.org/> and authorize
+   <https://my.amsc.energy.gov/dashboard> and authorize
    through **Ping Identity** (the AmSC IdP).
 2. **Select your project.** Pick your Genesis Mission RFA project and click
    **switch**.
@@ -61,13 +61,13 @@ That PAT is your bearer token for both wire APIs:
 
 | API flavor | Base URL |
 |---|---|
-| OpenAI-compatible (what this adapter drives) | `https://i2-api.genesis.american-science-cloud.org/v1` |
-| Anthropic-compatible (e.g. Claude Code) | `https://i2-api.genesis.american-science-cloud.org` |
+| OpenAI-compatible (what this adapter drives) | `https://mag.genesis.americansciencecloud.org/v1` |
+| Anthropic-compatible (e.g. Claude Code) | `https://mag.genesis.americansciencecloud.org` |
 
 **Sanity-check the token** by listing the models it can reach:
 
 ```bash
-curl -s https://i2-api.genesis.american-science-cloud.org/v1/models \
+curl -s https://mag.genesis.americansciencecloud.org/v1/models \
   -H "Authorization: Bearer $MAG_API_KEY" | jq
 ```
 
@@ -120,8 +120,9 @@ python3 tests/test_compaction.py                       # uses MAG_* from .env
 | `MAG_API_KEY`  | your AMSC bearer token — **one unbroken line** |
 | `SANDBOX_URI`  | `codex exec-server` WS URI; omit to disable the shell/fs/apply_patch tools |
 | `SANDBOX_CWD`  | base dir for per-session workspaces (default `/tmp`) |
-| `OPENAI_AGENTS_MODEL` | model the shim asks MAG to run (e.g. `openai/gpt-5.3-codex`) |
+| `OPENAI_AGENTS_MODEL` | model the shim asks MAG to run (e.g. `gpt-6-astra@openai`) |
 | `SHIM_MAX_TURNS` | agent-loop turn cap (default 10) |
+| `SHIM_MAX_TOOL_OUTPUT` | per-tool-result char cap sent back to MAG (default 100000; head+tail kept, middle dropped) |
 | `SHIM_COMPACT_EVERY` | compact the running conversation every N tool turns (0 = off; server-side chaining stays on) |
 
 ### Endpoints
@@ -244,14 +245,14 @@ from agents import ModelProvider, OpenAIChatCompletionsModel, Runner, set_tracin
 
 set_tracing_disabled(disabled=True)                     # no OpenAI-platform tracing behind a proxy
 mag_client = AsyncOpenAI(
-    base_url=os.environ["MAG_BASE_URL"],                # e.g. https://i2-api.genesis.american-science-cloud.org/v1
+    base_url=os.environ["MAG_BASE_URL"],                # e.g. https://mag.genesis.americansciencecloud.org/v1
     api_key=os.environ["MAG_API_KEY"],                  # your AMSC bearer token, one unbroken line
 )
 
 class MAGModelProvider(ModelProvider):
     def get_model(self, model_name):
         return OpenAIChatCompletionsModel(
-            model=model_name or "gpt-5.3-codex",
+            model=model_name or "gpt-6-astra@openai",
             openai_client=mag_client,
         )
 

@@ -11,7 +11,7 @@ import os
 import sys
 from typing import Any
 
-DEFAULT_MODEL = "gpt-5.3-codex"
+DEFAULT_MODEL = "gpt-6-astra@openai"
 
 
 def require_api_key() -> None:

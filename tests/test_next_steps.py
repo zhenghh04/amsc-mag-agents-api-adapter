@@ -54,7 +54,7 @@ def types(events):
 # ---- 1) native streaming passthrough ---------------------------------------
 print("=== 1) NATIVE STREAMING PASSTHROUGH ===")
 ev1 = stream({
-    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"),
+    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai"),
               "instructions": "Answer in one or two sentences."},
     "environment": {"type": "none"},
     "input": [{"role": "user", "content": "In one sentence, what is the Argonne Leadership Computing Facility?"}],
@@ -72,7 +72,7 @@ check(any(t == "agent.session.turn.item.done" and d.get("item", {}).get("type") 
 # ---- 2) apply_patch ---------------------------------------------------------
 print("\n=== 2) apply_patch TOOL (real sandbox) ===")
 ev2 = stream({
-    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"),
+    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai"),
               "instructions": "Use the apply_patch tool to make file changes, then confirm briefly."},
     "environment": {"type": "self_hosted"},
     "input": [{"role": "user", "content":
@@ -94,7 +94,7 @@ check(len(cmd_items) >= 1, f"command_execution item.done emitted (got {len(cmd_i
 print("\n=== 3) AUTH PASSTHROUGH (caller bearer forwarded to MAG) ===")
 r3 = httpx.post(f"{BASE}/v1/agents/sessions",
                 headers={**H, "Authorization": "Bearer invalid-token-xyz"},
-                json={"agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex")},
+                json={"agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai")},
                       "environment": {"type": "none"},
                       "input": [{"role": "user", "content": "hi"}]},
                 timeout=120.0)
@@ -105,7 +105,7 @@ check(r3.status_code == 200 and sess3.get("status") == "failed",
 # ---- 4) persistence ---------------------------------------------------------
 print("\n=== 4) PERSISTENCE (GET session) ===")
 r4 = httpx.post(f"{BASE}/v1/agents/sessions", headers=H,
-                json={"agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"), "instructions": "Answer in one word."},
+                json={"agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai"), "instructions": "Answer in one word."},
                       "environment": {"type": "none"},
                       "input": [{"role": "user", "content": "Say hello."}]},
                 timeout=120.0)
@@ -124,7 +124,7 @@ check(c404.status_code == 404, "cancel unknown session -> 404")
 state = {"sid": None, "events": []}
 def run_cancel_stream():
     stream({
-        "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"),
+        "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai"),
                   "instructions": "Use the shell tool exactly as asked."},
         "environment": {"type": "self_hosted"},
         "input": [{"role": "user", "content":

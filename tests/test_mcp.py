@@ -21,7 +21,7 @@ import httpx
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8811"
 H = {"OpenAI-Beta": "agents=v1"}
-MODEL = os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex")
+MODEL = os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai")
 FIXTURE = os.path.abspath(os.path.join(os.path.dirname(__file__), "mcp_server_fixture.py"))
 PYEXE = os.environ.get("MCP_FIXTURE_PYTHON", sys.executable)
 

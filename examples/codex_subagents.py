@@ -15,7 +15,7 @@ Run:
     bash scripts/run_codex_subagents.sh
 or, against an already-running shim:
     OPENAI_BASE_URL=http://127.0.0.1:8811/v1 OPENAI_API_KEY=$MAG_API_KEY \
-    OPENAI_AGENTS_MODEL=openai/gpt-5.3-codex python examples/codex_subagents.py
+    OPENAI_AGENTS_MODEL=gpt-6-astra@openai python examples/codex_subagents.py
 """
 from openai import OpenAI
 

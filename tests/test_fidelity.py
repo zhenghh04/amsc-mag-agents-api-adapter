@@ -56,7 +56,7 @@ def check(c, l):
 # ---- A) real sandbox --------------------------------------------------------
 print("=== A) REAL SANDBOX (environment=self_hosted -> codex exec-server) ===")
 evA = stream({
-    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"),
+    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai"),
               "instructions": "Use the shell tool to do exactly what the user asks, then answer briefly."},
     "environment": {"type": "self_hosted"},
     "input": [{"role": "user", "content":
@@ -76,7 +76,7 @@ if marker and os.path.exists(marker):
 # ---- B) parallel subagents --------------------------------------------------
 print("\n=== B) PARALLEL SUBAGENTS (multi_agent enabled) ===")
 evB = stream({
-    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex"),
+    "agent": {"model": os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai"),
               "instructions": "Delegate via run_subagent. Spawn the requested subagents in one "
                               "turn (parallel), then summarize their results in one sentence.",
               "multi_agent": {"enabled": True, "max_concurrent_subagents": 2}},
