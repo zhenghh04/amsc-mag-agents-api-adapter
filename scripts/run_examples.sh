@@ -33,7 +33,7 @@ echo "healthz: $(cat /tmp/h)"
 # Point the OpenAI SDK at the shim.
 export OPENAI_BASE_URL="http://127.0.0.1:8811/v1"
 export OPENAI_API_KEY="$MAG_API_KEY"
-export OPENAI_AGENTS_MODEL="${OPENAI_AGENTS_MODEL:-gpt-5.3-codex}"
+export OPENAI_AGENTS_MODEL="${OPENAI_AGENTS_MODEL:-gpt-6-astra@openai}"
 
 echo; echo "########## EXAMPLE 01: basic session (SDK, non-stream) ##########"
 ( cd "$EX_DIR/examples" && "$VENV/bin/python" 01_basic_session.py ) 2>&1 | head -40

@@ -29,7 +29,7 @@ if not os.environ.get("MAG_BASE_URL") or not os.environ.get("MAG_API_KEY"):
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import mag_agents_shim as shim  # imports after env is set (reads MAG_* at import)
 
-MODEL = os.environ.get("OPENAI_AGENTS_MODEL", "openai/gpt-5.3-codex")
+MODEL = os.environ.get("OPENAI_AGENTS_MODEL", "gpt-6-astra@openai")
 AUTH = f"Bearer {os.environ['MAG_API_KEY']}"
 
 ok = True

@@ -35,7 +35,7 @@ Capabilities:
 Run:
     codex exec-server --listen ws://127.0.0.1:8790 \
       -c 'sandbox_permissions=["disk-write-cwd"]'          # hardened sandbox
-    export MAG_BASE_URL=https://i2-api.genesis.american-science-cloud.org
+    export MAG_BASE_URL=https://mag.genesis.americansciencecloud.org
     export MAG_API_KEY=<bearer token>
     export SANDBOX_URI=ws://127.0.0.1:8790
     uvicorn mag_agents_shim:app --port 8811

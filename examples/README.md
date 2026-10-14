@@ -44,7 +44,7 @@ Set `AGENTS_RAW=1` to dump the raw JSON event wire instead of the pretty view:
 AGENTS_RAW=1 bash scripts/run_codex_subagents.sh
 ```
 
-### What a run looks like (real output, model `gpt-5.3-codex` on MAG)
+### What a run looks like (real output, model `gpt-6-astra@openai` on MAG)
 
 ```
 · session sess_1aee11a13fed41f48e9100b8
@@ -89,7 +89,7 @@ The examples default to `OPENAI_AGENTS_MODEL`. On MAG, use a codex-capable
 Responses model, e.g.:
 
 ```bash
-export OPENAI_AGENTS_MODEL=openai/gpt-5.3-codex
+export OPENAI_AGENTS_MODEL=gpt-6-astra@openai
 ```
 
 ## Rick's starter examples
