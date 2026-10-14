@@ -122,6 +122,7 @@ python3 tests/test_compaction.py                       # uses MAG_* from .env
 | `SANDBOX_CWD`  | base dir for per-session workspaces (default `/tmp`) |
 | `OPENAI_AGENTS_MODEL` | model the shim asks MAG to run (e.g. `gpt-6-astra@openai`) |
 | `SHIM_MAX_TURNS` | agent-loop turn cap (default 10) |
+| `SHIM_MAX_TOOL_OUTPUT` | per-tool-result char cap sent back to MAG (default 100000; head+tail kept, middle dropped) |
 | `SHIM_COMPACT_EVERY` | compact the running conversation every N tool turns (0 = off; server-side chaining stays on) |
 
 ### Endpoints

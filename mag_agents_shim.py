@@ -62,6 +62,13 @@ MAG_BASE = os.environ.get("MAG_BASE_URL", "").rstrip("/")
 MAG_KEY = os.environ.get("MAG_API_KEY", "")
 SANDBOX_URI = os.environ.get("SANDBOX_URI", "")
 MAX_TURNS = int(os.environ.get("SHIM_MAX_TURNS", "10"))
+# A sandbox command like `ls -R /`, a build log, or a big fs_read can emit megabytes.
+# Sent back verbatim as function_call_output that fails the whole turn:
+#   "Invalid 'input[0].output': string too long. Expected a string with maximum
+#    length 10485760, but got a string with length 11911905 instead."
+# The default is far below MAG's hard limit — the point is to keep the agent's
+# context usable, not merely to stay inside the request cap.
+MAX_TOOL_OUTPUT = int(os.environ.get("SHIM_MAX_TOOL_OUTPUT", "100000"))
 # Compact the running response chain every N tool turns (0 = never). Compaction
 # keeps a long agentic session's server-side context bounded.
 COMPACT_EVERY = int(os.environ.get("SHIM_COMPACT_EVERY", "0"))
@@ -390,6 +397,26 @@ async def _boot_mcp(ctx: SessionCtx) -> list[dict]:
 # --------------------------------------------------------------------------- #
 # Agent loop (root turn + subagents)
 # --------------------------------------------------------------------------- #
+def _truncate(s: str, cap: int) -> str:
+    """Keep the head and tail of an oversized string, drop the middle.
+
+    Tail matters as much as head: a build log puts its error at the end, so a
+    plain `s[:cap]` would throw away the part the model actually needs.
+    """
+    if len(s) <= cap:
+        return s
+    half = max(1, cap // 2)
+    return f"{s[:half]}\n...[{len(s) - 2 * half} chars truncated by the shim]...\n{s[-half:]}"
+
+
+def _cap_result(result: dict) -> dict:
+    """Bound a function_call_output before it is sent back to MAG."""
+    out = result.get("output")
+    if isinstance(out, str) and len(out) > MAX_TOOL_OUTPUT:
+        return {**result, "output": _truncate(out, MAX_TOOL_OUTPUT)}
+    return result
+
+
 async def _guard(ctx: SessionCtx, coro):
     """Await `coro`, but abort promptly (raising Cancelled) if the session is
     cancelled mid-flight — even during a long inference call or tool run."""
@@ -496,6 +523,9 @@ async def _run_loop(ctx: SessionCtx, agent_cfg: dict, input_items: list[dict],
 
                 results = await _guard(ctx, asyncio.gather(
                     *[_dispatch_call(ctx, sandbox, model, fc, emit, turn_id, depth) for fc in calls]))
+                # Cap here rather than in _dispatch_call: this is the one place every
+                # tool result passes through on its way back to MAG.
+                results = [_cap_result(r) for r in results]
                 turn_input = list(results)
 
                 if use_history:
