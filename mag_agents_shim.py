@@ -69,6 +69,9 @@ MAX_TURNS = int(os.environ.get("SHIM_MAX_TURNS", "10"))
 # The default is far below MAG's hard limit — the point is to keep the agent's
 # context usable, not merely to stay inside the request cap.
 MAX_TOOL_OUTPUT = int(os.environ.get("SHIM_MAX_TOOL_OUTPUT", "100000"))
+# Approval policy for hosted (MAG-executed) MCP tools. "never" because the agent
+# loop is autonomous — an approval request stalls the turn instead of asking anyone.
+MCP_REQUIRE_APPROVAL = os.environ.get("SHIM_MCP_REQUIRE_APPROVAL", "never")
 # Compact the running response chain every N tool turns (0 = never). Compaction
 # keeps a long agentic session's server-side context bounded.
 COMPACT_EVERY = int(os.environ.get("SHIM_COMPACT_EVERY", "0"))
@@ -142,6 +145,43 @@ Emit = Callable[[dict], Awaitable[None]]
 # --------------------------------------------------------------------------- #
 def _sanitize_tool_name(s: str) -> str:
     return "".join(c if (c.isalnum() or c in "_-") else "_" for c in s)
+
+
+def _is_stdio_mcp(t: Any) -> bool:
+    """True for a `type:mcp` tool this adapter runs itself in the sandbox."""
+    return (isinstance(t, dict) and t.get("type") == "mcp"
+            and (t.get("transport") or {}).get("type") == "stdio")
+
+
+def _flatten_hosted_mcp(tools: list[dict]) -> list[dict]:
+    """Translate hosted (non-stdio) Agents-API `type:mcp` specs into MAG's shape.
+
+    The Agents API nests the endpoint under `transport`:
+        {"type": "mcp", "server_label": L, "transport": {"type": "http", "server_url": U}}
+    The Responses API has no `transport` parameter and wants `server_url` flat.
+    Forwarding the nested form is rejected with
+    `Unknown parameter: 'tools[N].transport'` — which is why hosted MCP looked
+    unsupported until MAG's 2026-10 migration made these tools work.
+
+    `require_approval` defaults to "never" because this adapter drives an
+    autonomous loop with no human in it: an approval request would stall the turn
+    rather than prompt anyone. Set SHIM_MCP_REQUIRE_APPROVAL to change the default,
+    or set `require_approval` on the tool to override per-tool.
+    """
+    out: list[dict] = []
+    for t in tools or []:
+        if not (isinstance(t, dict) and t.get("type") == "mcp"):
+            out.append(t)
+            continue
+        t = dict(t)
+        transport = t.pop("transport", None) or {}
+        for src, dst in (("server_url", "server_url"), ("url", "server_url"),
+                         ("headers", "headers")):
+            if src in transport and dst not in t:
+                t[dst] = transport[src]
+        t.setdefault("require_approval", MCP_REQUIRE_APPROVAL)
+        out.append(t)
+    return out
 
 
 def _parse_mcp_specs(tools: list[dict]) -> list[dict]:
@@ -436,10 +476,12 @@ async def _run_loop(ctx: SessionCtx, agent_cfg: dict, input_items: list[dict],
                     emit: Emit, turn_id: str, depth: int) -> str:
     model = agent_cfg.get("model") or ctx.agent["model"]
     instructions = agent_cfg.get("instructions")
-    # Raw `type:mcp` declarations are not MAG tools — they're replaced below by the
-    # function tools discovered from each MCP server (_boot_mcp).
-    tools = [t for t in (agent_cfg.get("tools") or [])
-             if not (isinstance(t, dict) and t.get("type") == "mcp")]
+    # Raw *stdio* `type:mcp` declarations are not MAG tools — they're replaced below
+    # by the function tools discovered from each MCP server (_boot_mcp). Hosted
+    # (HTTP) MCP servers are forwarded to MAG, which connects and executes them
+    # server-side; they just need reshaping from the Agents-API `transport` form.
+    tools = _flatten_hosted_mcp([t for t in (agent_cfg.get("tools") or [])
+                                 if not _is_stdio_mcp(t)])
     if ctx.sandbox_enabled:
         tools.extend(SANDBOX_TOOLS)
     if depth == 0 and ctx.subagents_enabled:
